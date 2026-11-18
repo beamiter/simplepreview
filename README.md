@@ -82,6 +82,12 @@ let g:simplepreview_path = '/web-index.html'  " optional explicit entry page
 call simplepreview#Start(['./node_modules/.bin/vite', '--host', '127.0.0.1'], '/home/me/app')
 ```
 
+Explicit roots (`g:simplepreview_root` or the API's directory argument) must be
+existing local directories containing their own `package.json`. A typo, file
+path, or markerless subdirectory is rejected instead of silently running an
+ancestor project. Upward discovery is used only when no root was explicitly
+provided. The log window's remembered root is also checked exactly.
+
 Configuration does not start anything. No commands are read from repository
 configuration files or inferred from their content; `package.json` is only a
 root marker. Running a project command still executes that project's code and

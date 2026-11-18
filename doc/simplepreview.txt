@@ -46,7 +46,11 @@ COMMANDS                                           *simplepreview-commands*
 
 CONFIGURATION                                      *simplepreview-config*
 
-    g:simplepreview_root       Local project root override (string).
+    g:simplepreview_root       Exact local project root override (string).
+    Explicit roots (also Start's directory argument) must exist as directories
+    containing their own package.json. No ancestor fallback is allowed for an
+    explicit or remembered root. Automatic file-based upward discovery remains
+    available when no root override is supplied.
     g:simplepreview_command    Explicit argv list; default ['npm','run','dev'].
     g:simplepreview_path       Explicit page path for Open; default '/'.
     Example: :SimplePreviewStart pnpm run dev:web

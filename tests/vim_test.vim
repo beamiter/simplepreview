@@ -7,6 +7,16 @@ const Temp = tempname() .. " project ' space"
 mkdir(Temp .. '/src/nested', 'p')
 writefile(['{}'], Temp .. '/package.json')
 writefile(['{}'], Temp .. '/src/nested/package.json')
+const RootLink = Temp .. '-root-link'
+const SubdirLink = Temp .. '-subdir-link'
+const FileLink = Temp .. '-file-link'
+const DanglingLink = Temp .. '-dangling-link'
+for [target, link] in [[Temp, RootLink], [Temp .. '/src', SubdirLink],
+    [Temp .. '/package.json', FileLink], [Temp .. '/missing', DanglingLink]]
+  system('ln -s ' .. shellescape(target) .. ' ' .. shellescape(link))
+  assert_equal(0, v:shell_error)
+endfor
+
 
 def Throws(cmd: string, expected: string)
   try
@@ -60,11 +70,45 @@ try
   Throws('SimplePreviewOpen', 'SimplePreview: no running')
   g:simplepreview_root = Temp
   Throws("simplepreview#Start(['definitely-missing-executable'])", 'SimplePreview: executable not found')
+  # Explicit root typos must never select and execute an ancestor project.
+  for invalid_root in [Temp .. '/missing-root', Temp .. '/src',
+      Temp .. '/src/new.tsx', Temp .. '/package.json', 'scp://host/project',
+      SubdirLink, FileLink, DanglingLink]
+    g:preview_test_root = invalid_root
+    Throws("simplepreview#Start(['python3', '-c', 'print(123)'], g:preview_test_root)", 'SimplePreview: explicit project root')
+    assert_equal('idle', simplepreview#Status().state)
+    g:simplepreview_root = invalid_root
+    Throws("simplepreview#Start(['python3', '-c', 'print(123)'])", 'SimplePreview: explicit project root')
+    assert_equal('idle', simplepreview#Status().state)
+  endfor
+  unlet g:preview_test_root
+  g:simplepreview_root = Temp
   # No auto start when sourcing, entering a TSX buffer or writing it.
   execute 'edit ' .. fnameescape(Temp .. '/src/index.tsx')
   setfiletype typescriptreact
   write
   assert_equal('idle', simplepreview#Status().state)
+  # With no override, discovery still walks up from the current local file.
+  unlet g:simplepreview_root
+  simplepreview#Start(['python3', '-c', 'print("auto-root")'])
+  WaitFor('exited')
+  assert_equal(Temp, simplepreview#Status().root)
+  # An explicit symlink to a valid project resolves to its canonical directory.
+  simplepreview#Start(['python3', '-c', 'print("symlink-root")'], RootLink .. '/')
+  WaitFor('exited')
+  assert_equal(Temp, simplepreview#Status().root)
+  # Resolve symlinks before '..': the real parent differs from the alias parent.
+  simplepreview#Start(['python3', '-c', 'print("symlink-parent")'], SubdirLink .. '/..')
+  WaitFor('exited')
+  assert_equal(Temp, simplepreview#Status().root)
+  var prior_cwd = getcwd()
+  execute 'lcd ' .. fnameescape(Temp)
+  simplepreview#Start(['python3', '-c', 'print("relative-root")'], '.')
+  WaitFor('exited')
+  assert_equal(Temp, simplepreview#Status().root)
+  assert_equal(Temp, getcwd())
+  execute 'lcd ' .. fnameescape(prior_cwd)
+  g:simplepreview_root = Temp
   # Browser stub records argv, so no real browser is launched by tests.
   mkdir(Temp .. '/tools')
   writefile(['#!/bin/sh', 'printf "%s\n" "$@" > "$SP_OPEN_LOG"'], Temp .. '/tools/xdg-open')
@@ -277,5 +321,8 @@ if !empty(v:errors)
   writefile(v:errors, '/tmp/simplepreview-vim-errors')
   cquit
 endif
+for link in [RootLink, SubdirLink, FileLink, DanglingLink]
+  delete(link)
+endfor
 delete(Temp, 'rf')
 qa!

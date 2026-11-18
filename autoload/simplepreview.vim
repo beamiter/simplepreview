@@ -60,6 +60,15 @@ export def ProjectRoot(start: string): string
   return ''
 enddef
 
+def ExactProjectRoot(path: string): string
+  if empty(path) || path =~# '^\a\+://' || !isdirectory(path)
+    return ''
+  endif
+  var dir = resolve(fnamemodify(path, ':p'))
+  dir = dir == '/' ? dir : substitute(dir, '/$', '', '')
+  return filereadable(dir .. '/package.json') ? dir : ''
+enddef
+
 export def Status(): dict<any>
   return {state: phase, root: root, command: copy(command), url: url,
           exit_code: exit_code, last_line: last_line, restart_pending: !empty(pending_restart)}
@@ -177,8 +186,10 @@ export def Start(args: list<string> = [], directory: string = '')
   if empty(location)
     location = get(g:, 'simplepreview_root', '')
   endif
+  var explicit_root = !empty(location)
   if empty(location) && bufnr() == log_buffer && !empty(root)
     location = root
+    explicit_root = true
   endif
   if empty(location)
     if &buftype != '' || bufname() =~# '^\a\+://'
@@ -186,8 +197,11 @@ export def Start(args: list<string> = [], directory: string = '')
     endif
     location = empty(bufname()) ? getcwd() : expand('%:p')
   endif
-  var project = ProjectRoot(location)
+  var project = explicit_root ? ExactProjectRoot(location) : ProjectRoot(location)
   if empty(project)
+    if explicit_root
+      throw 'SimplePreview: explicit project root must be an existing local directory containing package.json'
+    endif
     throw 'SimplePreview: no local package.json found; choose the project root'
   endif
   var argv: list<string> = copy(empty(args) ? get(g:, 'simplepreview_command', ['npm', 'run', 'dev']) : args)
