@@ -146,6 +146,27 @@ time.sleep(60)
                 time.sleep(.02)
             self.assertFalse(alive(pid), 'child survived actual Vim exit')
 
+    def test_nonroot_web_entry(self):
+        # Models a separate dev:web server without installing/running Orca.
+        proc = self.launch("""from http.server import HTTPServer, BaseHTTPRequestHandler
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200 if self.path == '/web-index.html' else 404)
+        self.end_headers()
+        self.wfile.write(b'<h1>web entry fixture</h1>')
+    def log_message(self, *args): pass
+server = HTTPServer(('127.0.0.1', 0), Handler)
+print('http://127.0.0.1:%d/' % server.server_port, flush=True)
+server.serve_forever()
+""")
+        origin = proc.stdout.readline().decode().strip()
+        with self.assertRaises(urllib.error.HTTPError) as missing:
+            urllib.request.urlopen(origin, timeout=2)
+        self.assertEqual(missing.exception.code, 404)
+        with urllib.request.urlopen(origin + 'web-index.html', timeout=2) as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn(b'web entry fixture', response.read())
+
     def test_missing_executable(self):
         result = subprocess.run([sys.executable, str(SUPERVISOR), '/missing-command'],
                                 input=b'', capture_output=True, timeout=5)

@@ -54,12 +54,30 @@ To explicitly use a different command:
 :SimplePreviewStart pnpm run dev
 ```
 
-The Ex command uses Vim's `<f-args>` rules, **not shell parsing**. For arguments
+For projects with a separate web command (rather than their desktop/Electron
+`dev` script), select it explicitly. To open a non-root entry page:
+
+```vim
+:SimplePreviewStart pnpm run dev:web
+:SimplePreviewOpen /web-index.html
+```
+
+The command and page are examples, not auto-detected project conventions. The
+server must first print an eligible loopback origin. An explicit page changes
+only the path on that origin; it never chooses a different host or port. Without
+an argument, Open uses `g:simplepreview_path` (default `/`), which you may set in
+your own Vim configuration. Use `/` explicitly to override a configured page.
+Page paths accept ASCII letters, digits, `.`, `_`, `~`, `-` and single slashes;
+`//`, dot segments, percent escapes, spaces, backslashes, queries and fragments
+are rejected. No paths or configuration are taken from repository files/output.
+
+The Start command uses Vim's `<f-args>` rules, **not shell parsing**. For arguments
 containing spaces use the typed API or configuration:
 
 ```vim
 let g:simplepreview_root = '/home/me/project with spaces'
 let g:simplepreview_command = ['npm', 'run', 'dev', '--', '--host', '127.0.0.1']
+let g:simplepreview_path = '/web-index.html'  " optional explicit entry page
 " Explicit API, including a project-relative executable:
 call simplepreview#Start(['./node_modules/.bin/vite', '--host', '127.0.0.1'], '/home/me/app')
 ```
@@ -82,8 +100,9 @@ outside this ownership boundary and must not be used as a dev command.
 - Open is separate from Start; output never automatically launches a browser.
 - Only exact `http://` or `https://` origins with an explicit port 1–65535 on
   `localhost`, `127.0.0.1`, or `[::1]` are accepted. A trailing `/` is allowed.
-- External hosts, `0.0.0.0`, credentials, paths, query strings, fragments and
-  shell/browser flags are rejected. Only the first accepted URL is retained.
+- URLs in output with external hosts, `0.0.0.0`, credentials, paths, queries,
+  fragments or shell/browser flags are rejected. Only the first accepted origin
+  is retained. A non-root page must be chosen explicitly as described above.
 - The plugin uses argv lists, not shell concatenation, for both server and
   browser. Paths with spaces and apostrophes are supported.
 - Retained output is bounded (status plus the diagnostic tail). Under heavy backpressure the supervisor may drop
@@ -119,5 +138,6 @@ Linux browser opener. They do not install packages, run a real project's scripts
 or launch a real browser. Coverage includes hostile URLs, split/ANSI output,
 nearest project discovery, spaces/apostrophes and literal argv, no automatic
 start/open, repeated stop/restart, nonzero exit, relative executables, process
-group cleanup after stop/EOF/leader exit, output-flood backpressure, and bounded/reusable diagnostic logs.
+group cleanup after stop/EOF/leader exit, output-flood backpressure, bounded/reusable diagnostic logs, and explicit
+non-root entry paths (including a synthetic root-404/page-200 web server).
 These are not a React/Vite end-to-end or macOS verification claim.

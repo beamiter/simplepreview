@@ -42,6 +42,15 @@ try
       "http://localhost:80/\n", 'http://localhost:80/#x']
     assert_equal('', simplepreview#LocalURL(token), token)
   endfor
+  for page in ['/', '/web-index.html', '/nested/app-v2_1.html', '/~preview/']
+    assert_equal('http://localhost:5173' .. page, simplepreview#PageURL('http://localhost:5173/', page))
+  endfor
+  for page in ['', 'web-index.html', '//evil.example/', '/a//b', '/../x', '/a/./b',
+      'https://evil.example/', '/x?redirect=https://evil.example', '/x#fragment',
+      '/%2f%2fevil.example', '/%2e%2e/x', '/x\y', "/x\ny", '/x y', '/@evil', repeat('/a', 1025)]
+    assert_equal('', simplepreview#PageURL('http://localhost:5173/', page), page)
+  endfor
+  assert_equal('', simplepreview#PageURL('http://evil.example:80/', '/web-index.html'))
   assert_equal(Temp, simplepreview#ProjectRoot(Temp .. '/src/index.tsx'))
   assert_equal(Temp .. '/src/nested', simplepreview#ProjectRoot(Temp .. '/src/nested/index.tsx'))
   assert_equal('', simplepreview#ProjectRoot('scp://host/project'))
@@ -83,6 +92,37 @@ try
       sleep 10m
     endfor
     assert_equal(['http://localhost:5173/'], readfile($SP_OPEN_LOG))
+    SimplePreviewOpen /web-index.html
+    for _ in range(100)
+      if readfile($SP_OPEN_LOG) == ['http://localhost:5173/web-index.html']
+        break
+      endif
+      sleep 10m
+    endfor
+    assert_equal(['http://localhost:5173/web-index.html'], readfile($SP_OPEN_LOG))
+    g:simplepreview_path = '/nested/app.html'
+    SimplePreviewOpen
+    for _ in range(100)
+      if readfile($SP_OPEN_LOG) == ['http://localhost:5173/nested/app.html']
+        break
+      endif
+      sleep 10m
+    endfor
+    assert_equal(['http://localhost:5173/nested/app.html'], readfile($SP_OPEN_LOG))
+    SimplePreviewOpen /
+    for _ in range(100)
+      if readfile($SP_OPEN_LOG) == ['http://localhost:5173/']
+        break
+      endif
+      sleep 10m
+    endfor
+    assert_equal(['http://localhost:5173/'], readfile($SP_OPEN_LOG))
+    Throws('SimplePreviewOpen //evil.example/', 'SimplePreview: page must')
+    g:simplepreview_path = 'https://evil.example/'
+    Throws('SimplePreviewOpen', 'SimplePreview: page must')
+    assert_equal(['http://localhost:5173/'], readfile($SP_OPEN_LOG))
+    unlet g:simplepreview_path
+
   endif
   SimplePreviewStop
   SimplePreviewStop

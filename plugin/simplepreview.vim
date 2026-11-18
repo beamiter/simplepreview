@@ -5,7 +5,7 @@ endif
 g:loaded_simplepreview = true
 command! -nargs=* SimplePreviewStart simplepreview#Start([<f-args>])
 command! SimplePreviewLogs simplepreview#Logs()
-command! SimplePreviewOpen simplepreview#Open()
+command! -nargs=? SimplePreviewOpen simplepreview#Open(<q-args>)
 command! SimplePreviewStatus echo simplepreview#Status()
 command! SimplePreviewStop simplepreview#Stop()
 augroup SimplePreview

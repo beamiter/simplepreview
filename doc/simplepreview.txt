@@ -8,11 +8,16 @@ COMMANDS                                           *simplepreview-commands*
     Does not install packages. Arguments follow <f-args>, not shell syntax.
     Trust the project before running its scripts. One session per Vim.
 
-:SimplePreviewOpen                                  *:SimplePreviewOpen*
+:SimplePreviewOpen [path]                           *:SimplePreviewOpen*
     Explicitly open the first accepted loopback origin in the system browser.
     Requires a running session. Never opens automatically. Only localhost,
     127.0.0.1 and [::1], HTTP(S), explicit port 1-65535, optional final /.
-    Paths, queries, credentials, external addresses and wildcard hosts rejected.
+    Paths in process output, queries, credentials, external addresses and
+    wildcard hosts are rejected. An explicit [path], e.g. /web-index.html, may
+    select a page on that same origin. No host/port override is possible.
+    Path defaults to g:simplepreview_path or /. Allowed: ASCII letters, digits,
+    / . _ ~ -. Reject //, dot segments, percent escapes, spaces, backslashes,
+    queries and fragments. Use / explicitly to override a configured path.
 
 :SimplePreviewStatus                                *:SimplePreviewStatus*
     Show state, project root, argv, URL, exit code and latest output line.
@@ -35,6 +40,10 @@ CONFIGURATION                                      *simplepreview-config*
 
     g:simplepreview_root       Local project root override (string).
     g:simplepreview_command    Explicit argv list; default ['npm','run','dev'].
+    g:simplepreview_path       Explicit page path for Open; default '/'.
+    Example: :SimplePreviewStart pnpm run dev:web
+             :SimplePreviewOpen /web-index.html
+    Select the project's web command yourself; Electron dev is not a web page.
     simplepreview#Start(argv, root) is the equivalent typed API.
     Relative executable paths resolve against the project, never Vim's cwd.
     Configuration alone runs nothing. Repository content is not executed until

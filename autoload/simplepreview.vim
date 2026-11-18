@@ -23,6 +23,21 @@ export def LocalURL(token: string): string
   return m[1] .. '://' .. m[2] .. ':' .. m[3] .. '/'
 enddef
 
+# Explicit page paths only. Never take a path, query or redirect from output.
+export def PageURL(origin: string, path: string): string
+  var local_origin = LocalURL(origin)
+  if empty(local_origin) || strlen(path) > 2048
+      || path !~# '^/[A-Za-z0-9._~/-]*$' || stridx(path, '//') >= 0
+    return ''
+  endif
+  for segment in split(path, '/', true)
+    if segment == '.' || segment == '..'
+      return ''
+    endif
+  endfor
+  return strpart(local_origin, 0, strlen(local_origin) - 1) .. path
+enddef
+
 export def ProjectRoot(start: string): string
   if start =~# '^\a\+://' || empty(start)
     return ''
@@ -196,9 +211,14 @@ export def Stop()
   endif
 enddef
 
-export def Open()
+export def Open(path: string = '')
   if phase != 'running' || empty(url) || LocalURL(url) != url
     throw 'SimplePreview: no running local preview URL; check :SimplePreviewStatus'
+  endif
+  var page = empty(path) ? get(g:, 'simplepreview_path', '/') : path
+  var target = PageURL(url, page)
+  if empty(target)
+    throw 'SimplePreview: page must be an absolute local path using letters, digits, / . _ ~ - (no //, dot segments, query or fragment)'
   endif
   var opener: list<string>
   if has('macunix')
@@ -208,7 +228,7 @@ export def Open()
   else
     throw 'SimplePreview: no browser opener; copy the URL from status'
   endif
-  var browser = job_start(opener + [url], {in_io: 'null', out_io: 'null', err_io: 'null', stoponexit: ''})
+  var browser = job_start(opener + [target], {in_io: 'null', out_io: 'null', err_io: 'null', stoponexit: ''})
   if job_status(browser) == 'fail'
     throw 'SimplePreview: browser opener failed to start'
   endif
