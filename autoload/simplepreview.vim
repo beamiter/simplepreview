@@ -1,5 +1,6 @@
 vim9script
-const Supervisor = expand('<sfile>:p:h:h') .. '/bin/supervise.py'
+const Bin = expand('<sfile>:p:h:h') .. '/bin/'
+const Supervisor = Bin .. 'supervise.py'
 var server: job
 var phase = 'idle'
 var root = ''
@@ -10,6 +11,8 @@ var last_line = ''
 var exit_code = -1
 var generation = 0
 var pending_restart: dict<any> = {}
+var canvas = ''
+var open_canvas_when_ready = false
 var log_lines: list<string> = []
 var log_buffer = -1
 const LogLimit = 200
@@ -69,6 +72,47 @@ def ExactProjectRoot(path: string): string
   return filereadable(dir .. '/package.json') ? dir : ''
 enddef
 
+def CurrentCanvas(): string
+  if &buftype != '' || bufname() =~# '^\a\+://' || expand('%:p') !~# '\.canvas\.tsx$'
+    return ''
+  endif
+  var path = resolve(expand('%:p'))
+  var projects = resolve(expand('~/.cursor/projects'))
+  if stridx(path, projects .. '/') == 0
+      && strpart(path, strlen(projects) + 1) =~# '^[^/]\+/canvases/[^/]\+\.canvas\.tsx$'
+    return path
+  endif
+  return ''
+enddef
+
+def StartCanvas(path: string)
+  if !filereadable(path)
+    throw 'SimplePreview: save the Canvas file before previewing it'
+  endif
+  var runtime = get(g:, 'simplepreview_canvas_runtime', '')
+  if empty(runtime) && executable('cursor')
+    var install = fnamemodify(resolve(exepath('cursor')), ':h:h')
+    for app in [install .. '/resources/app', install]
+      var candidate = app .. '/extensions/cursor-agent-exec/dist/canvas-runtime/canvas-runtime.esm.js'
+      if filereadable(candidate)
+        runtime = candidate
+        break
+      endif
+    endfor
+  endif
+  if !filereadable(runtime)
+    throw 'SimplePreview: Cursor Canvas runtime not found; set g:simplepreview_canvas_runtime'
+  endif
+  var data_home = empty($XDG_DATA_HOME) ? expand('~/.local/share') : $XDG_DATA_HOME
+  var compiler = get(g:, 'simplepreview_canvas_typescript',
+    data_home .. '/simplecc/servers/typescript-language-server/node_modules/typescript/lib/typescript.js')
+  if !filereadable(compiler)
+    throw 'SimplePreview: TypeScript compiler not found; install it via SimpleCC or set g:simplepreview_canvas_typescript'
+  endif
+  Launch(fnamemodify(path, ':h'), ['node', Bin .. 'preview-canvas.cjs', path,
+    fnamemodify(runtime, ':p'), fnamemodify(compiler, ':p')], path)
+enddef
+
 export def Status(): dict<any>
   return {state: phase, root: root, command: copy(command), url: url,
           exit_code: exit_code, last_line: last_line, restart_pending: !empty(pending_restart)}
@@ -116,6 +160,14 @@ def ReadLine(line: string)
       var candidate = LocalURL(token)
       if !empty(candidate)
         url = candidate
+        if open_canvas_when_ready
+          open_canvas_when_ready = false
+          try
+            OpenBrowser(candidate)
+          catch /^SimplePreview:/
+            echom v:exception
+          endtry
+        endif
         break
       endif
     endfor
@@ -151,6 +203,7 @@ def Exited(id: number, _job: job, code: number)
   if id == generation
     exit_code = code
     phase = 'exited'
+    open_canvas_when_ready = false
     if !empty(pending_restart)
       var request = pending_restart
       pending_restart = {}
@@ -169,6 +222,13 @@ def Exited(id: number, _job: job, code: number)
 enddef
 
 def LaunchRestart(request: dict<any>)
+  if !empty(request.canvas)
+    if !filereadable(request.canvas)
+      throw 'SimplePreview: original Canvas file is unavailable'
+    endif
+    Launch(request.root, request.command, request.canvas)
+    return
+  endif
   if ProjectRoot(request.root) != request.root
     throw 'SimplePreview: original project root no longer has package.json'
   endif
@@ -179,12 +239,16 @@ export def Start(args: list<string> = [], directory: string = '')
   if phase == 'running' || phase == 'stopping'
     throw 'SimplePreview: stop the current session before starting another'
   endif
-  if !has('unix') || !has('job') || !executable('python3')
-    throw 'SimplePreview: requires POSIX Vim with +job and Python 3'
-  endif
   var location = directory
   if empty(location)
     location = get(g:, 'simplepreview_root', '')
+  endif
+  if empty(location) && empty(args)
+    var path = CurrentCanvas()
+    if !empty(path)
+      StartCanvas(path)
+      return
+    endif
   endif
   var explicit_root = !empty(location)
   if empty(location) && bufnr() == log_buffer && !empty(root)
@@ -204,7 +268,15 @@ export def Start(args: list<string> = [], directory: string = '')
     endif
     throw 'SimplePreview: no local package.json found; choose the project root'
   endif
-  var argv: list<string> = copy(empty(args) ? get(g:, 'simplepreview_command', ['npm', 'run', 'dev']) : args)
+  var argv: list<string> = empty(args) ? get(g:, 'simplepreview_command', ['npm', 'run', 'dev']) : args
+  Launch(project, argv)
+enddef
+
+def Launch(project: string, args: list<string>, canvas_path: string = '')
+  if !has('unix') || !has('job') || !executable('python3')
+    throw 'SimplePreview: requires POSIX Vim with +job and Python 3'
+  endif
+  var argv = copy(args)
   if !empty(argv) && stridx(argv[0], '/') >= 0 && argv[0][0] != '/'
     argv[0] = simplify(project .. '/' .. argv[0])
   endif
@@ -219,6 +291,8 @@ export def Start(args: list<string> = [], directory: string = '')
   generation += 1
   root = project
   command = copy(argv)
+  canvas = canvas_path
+  open_canvas_when_ready = false
   url = ''
   pending = ''
   last_line = ''
@@ -238,6 +312,7 @@ export def Start(args: list<string> = [], directory: string = '')
 enddef
 
 def StopJob()
+  open_canvas_when_ready = false
   if phase != 'running' && phase != 'stopping'
     return
   endif
@@ -257,8 +332,8 @@ export def Restart()
   if empty(command) || empty(root)
     throw 'SimplePreview: no previous command; use Start first'
   endif
-  var request = {command: copy(command), root: root}
-  if ProjectRoot(root) != root
+  var request = {command: copy(command), root: root, canvas: canvas}
+  if empty(canvas) && ProjectRoot(root) != root
     throw 'SimplePreview: original project root no longer has package.json'
   endif
   if phase == 'running' || phase == 'stopping'
@@ -271,6 +346,21 @@ export def Restart()
 enddef
 
 export def Open(path: string = '')
+  var current = empty(path) ? CurrentCanvas() : ''
+  if !empty(current)
+    if phase == 'stopping' || (phase == 'running' && canvas != current)
+      throw 'SimplePreview: stop the current session before opening this Canvas'
+    endif
+    if phase != 'running'
+      StartCanvas(current)
+    endif
+    if empty(url)
+      open_canvas_when_ready = true
+    else
+      OpenBrowser(url)
+    endif
+    return
+  endif
   if phase != 'running' || empty(url) || LocalURL(url) != url
     throw 'SimplePreview: no running local preview URL; check :SimplePreviewStatus'
   endif
@@ -279,6 +369,10 @@ export def Open(path: string = '')
   if empty(target)
     throw 'SimplePreview: page must be an absolute local path using letters, digits, / . _ ~ - (no //, dot segments, query or fragment)'
   endif
+  OpenBrowser(target)
+enddef
+
+def OpenBrowser(target: string)
   var opener: list<string>
   if has('macunix')
     opener = ['open']

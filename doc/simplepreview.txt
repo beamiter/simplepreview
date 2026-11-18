@@ -10,7 +10,7 @@ COMMANDS                                           *simplepreview-commands*
 
 :SimplePreviewOpen [path]                           *:SimplePreviewOpen*
     Explicitly open the first accepted loopback origin in the system browser.
-    Requires a running session. Never opens automatically. Only localhost,
+    For a web project, requires a running session. Only localhost,
     127.0.0.1 and [::1], HTTP(S), explicit port 1-65535, optional final /.
     Paths in process output, queries, credentials, external addresses and
     wildcard hosts are rejected. An explicit [path], e.g. /web-index.html, may
@@ -18,6 +18,8 @@ COMMANDS                                           *simplepreview-commands*
     Path defaults to g:simplepreview_path or /. Allowed: ASCII letters, digits,
     / . _ ~ -. Reject //, dot segments, percent escapes, spaces, backslashes,
     queries and fragments. Use / explicitly to override a configured path.
+    Without an argument in a managed Cursor Canvas buffer, starts that Canvas
+    preview if needed and opens the page when ready. See |simplepreview-canvas|.
 
 :SimplePreviewStatus                                *:SimplePreviewStatus*
     Show state, project root, argv, URL, exit code and latest output line.
@@ -63,15 +65,29 @@ CONFIGURATION                                      *simplepreview-config*
 
 REQUIREMENTS AND LIMITS                             *simplepreview-limits*
 
-    Vim9 +job +channel, POSIX Python 3 with waitid/WNOWAIT, existing package.json
-    project, installed dependencies, foreground server. Linux tested; macOS
+    Vim9 +job +channel and POSIX Python 3 with waitid/WNOWAIT. Web projects need
+    package.json, installed dependencies, and a foreground server. Linux tested; macOS
     browser branch unverified; Windows unsupported. Browser opener is xdg-open
     (Linux) or open (macOS). No automatic dependency installation.
 
     This opens an external browser, not a rendered Vim split. HMR is supplied
-    by your dev server after saves, not unsaved edits. TSX needs a working app.
-    No standalone component harness, SSH port forwarding, remote server,
+    by your dev server after saves, not unsaved edits. General TSX needs an app.
+    No SSH port forwarding, remote server,
     server authentication, or browser-render success detection. A loopback
     server can still redirect a browser elsewhere; use trusted projects.
+
+CURSOR CANVASES                                     *simplepreview-canvas*
+
+    Open a saved ~/.cursor/projects/<workspace>/canvases/<name>.canvas.tsx
+    in Vim. With no arguments, Open starts and opens the local preview;
+    Start launches the preview without opening a browser. Save and reload
+    the browser to refresh. Features requiring the editor (such as publishing
+    and agent actions) are available in the native Canvas view.
+
+    Requires Node.js, the installed Cursor runtime, and TypeScript. The
+    defaults discover the runtime via cursor on PATH and the compiler in the
+    SimpleCC-managed TypeScript installation. To override these locations:
+      let g:simplepreview_canvas_runtime = '/path/to/canvas-runtime.esm.js'
+      let g:simplepreview_canvas_typescript = '/path/to/typescript.js'
 
 vim:tw=78:ts=8:noet:ft=help:norl:

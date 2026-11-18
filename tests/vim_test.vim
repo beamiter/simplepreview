@@ -312,6 +312,50 @@ try
   assert_match('executable not found', simplepreview#Status().last_line)
   SimplePreviewStop
   unlet g:simplepreview_command g:simplepreview_root
+
+  # Opening the current managed Canvas can start its own preview without a package.json.
+  var old_home = $HOME
+  $HOME = Temp .. '/canvas-home'
+  var canvas_dir = $HOME .. '/.cursor/projects/workspace/canvases'
+  mkdir(canvas_dir, 'p')
+  var canvas_file = canvas_dir .. "/roadmap ' space.canvas.tsx"
+  writefile(['export default function Roadmap() { return <h1>Roadmap</h1> }'], canvas_file)
+  g:simplepreview_canvas_runtime = Temp .. '/runtime.mjs'
+  g:simplepreview_canvas_typescript = Temp .. '/typescript.js'
+  writefile([], g:simplepreview_canvas_runtime)
+  writefile([], g:simplepreview_canvas_typescript)
+  writefile(['#!/bin/sh', 'printf "%s\n" "$@" > "$SP_CANVAS_ARGS"',
+    'sleep 0.1', 'printf "http://127.0.0.1:32123/\n"', 'sleep 30'], Temp .. '/tools/node')
+  setfperm(Temp .. '/tools/node', 'rwx------')
+  $SP_CANVAS_ARGS = Temp .. '/canvas-args.txt'
+  delete($SP_OPEN_LOG)
+  execute 'edit ' .. fnameescape(canvas_file)
+  assert_equal('failed', simplepreview#Status().state)
+  assert_false(filereadable($SP_CANVAS_ARGS))
+  if !has('macunix')
+    SimplePreviewOpen
+    SimplePreviewOpen
+    for _ in range(100)
+      if filereadable($SP_OPEN_LOG)
+        break
+      endif
+      sleep 20m
+    endfor
+    assert_equal(['http://127.0.0.1:32123/'], readfile($SP_OPEN_LOG))
+    assert_equal(canvas_dir, simplepreview#Status().root)
+    assert_equal([Repo .. '/bin/preview-canvas.cjs', canvas_file,
+      g:simplepreview_canvas_runtime, g:simplepreview_canvas_typescript],
+      readfile($SP_CANVAS_ARGS))
+    assert_false(filereadable(canvas_dir .. '/package.json'))
+    SimplePreviewStop
+    WaitFor('exited')
+  endif
+  SimplePreviewStart
+  assert_equal('running', simplepreview#Status().state)
+  assert_equal(canvas_dir, simplepreview#Status().root)
+  SimplePreviewStop
+  WaitFor('exited')
+  $HOME = old_home
 catch
   assert_report(v:exception .. ' at ' .. v:throwpoint)
 finally

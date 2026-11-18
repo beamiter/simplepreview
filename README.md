@@ -1,9 +1,7 @@
 # SimplePreview
 
-An independent Vim9 plugin for **existing local web projects**, including React/TSX.
-It starts a dev server only when asked, finds a loopback URL in its output, and
-opens your external browser only when asked. It does not render TSX inside a Vim
-text window, create a project, install dependencies, or replace your bundler.
+An independent Vim9 plugin for **existing local web projects** and **Cursor Canvases**.
+It starts a preview on request and opens it in your external browser.
 
 ## Requirements
 
@@ -12,7 +10,7 @@ text window, create a project, install dependencies, or replace your bundler.
   Linux is tested. macOS has a browser opener branch but is **not yet verified**;
   unsupported Python builds fail before starting the project. Windows is not
   supported in this first version.
-- An existing project with `package.json`, dependencies already installed, and a
+- For web projects, a `package.json`, dependencies already installed, and a
   working foreground dev command. For React/Vite this is usually `npm run dev`.
 - `xdg-open` on Linux or `open` on macOS, for the optional browser command.
 
@@ -133,6 +131,26 @@ attachment is performed. Open hands the URL to the OS; it cannot confirm that a
 browser successfully displayed the page.
 
 ## TSX boundaries
+
+### Cursor Canvases
+
+From a saved `~/.cursor/projects/<workspace>/canvases/<name>.canvas.tsx` buffer,
+run `:SimplePreviewOpen` to start and open a local browser preview. Use
+`:SimplePreviewStart` without a project root override to start it without opening
+the browser. Save changes and
+reload the browser to see them. Status, Stop, and Restart use the same managed
+session as a web project.
+
+Canvas preview requires Node.js, the runtime bundled with Cursor, and the
+TypeScript compiler. SimplePreview looks for the runtime in the installation
+that provides `cursor` on PATH and for the compiler in the SimpleCC-managed
+TypeScript installation. For other installations, set
+`g:simplepreview_canvas_runtime` and `g:simplepreview_canvas_typescript` to the
+paths of `canvas-runtime.esm.js` and `typescript.js`. The browser mounts the
+saved component with the Cursor Canvas SDK. Features that depend on the Cursor
+editor, such as agent actions and publishing, require the native Canvas view.
+
+### Web projects
 
 SimpleTreeSitter supplies TSX highlighting and SimpleCC can use
 `typescript-language-server` for `typescriptreact` buffers. SimplePreview is
