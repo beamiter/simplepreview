@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: simplepreview-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    name: Vim9 and process lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install Vim
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes vim-nox
+          vim --version
+          python3 --version
+      - name: Run complete test suite
+        run: make check
+      - name: Validate help and Python syntax
+        run: |
+          vim -Nu NONE -n -i NONE -es -c 'helptags doc' -c 'qa!'
+          python3 -m py_compile bin/supervise.py tests/test_supervisor.py
+          git diff --check

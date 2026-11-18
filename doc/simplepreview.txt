@@ -1,0 +1,48 @@
+*simplepreview.txt*  Explicit local web-project preview for Vim9
+
+COMMANDS                                           *simplepreview-commands*
+
+:SimplePreviewStart [argv...]                       *:SimplePreviewStart*
+    Explicitly start one foreground project command. Default: npm run dev.
+    Uses nearest package.json from current local file, or cwd when unnamed.
+    Does not install packages. Arguments follow <f-args>, not shell syntax.
+    Trust the project before running its scripts. One session per Vim.
+
+:SimplePreviewOpen                                  *:SimplePreviewOpen*
+    Explicitly open the first accepted loopback origin in the system browser.
+    Requires a running session. Never opens automatically. Only localhost,
+    127.0.0.1 and [::1], HTTP(S), explicit port 1-65535, optional final /.
+    Paths, queries, credentials, external addresses and wildcard hosts rejected.
+
+:SimplePreviewStatus                                *:SimplePreviewStatus*
+    Show state, project root, argv, URL, exit code and latest output line.
+    Output is bounded and can be lossy under backpressure; not a full log.
+
+:SimplePreviewStop                                  *:SimplePreviewStop*
+    Asynchronously stop owned foreground process group (TERM, then KILL).
+    Wait until state is exited before restarting. Safe to repeat. Vim exit
+    also requests cleanup. Deliberately detached/daemonized children excluded.
+
+CONFIGURATION                                      *simplepreview-config*
+
+    g:simplepreview_root       Local project root override (string).
+    g:simplepreview_command    Explicit argv list; default ['npm','run','dev'].
+    simplepreview#Start(argv, root) is the equivalent typed API.
+    Relative executable paths resolve against the project, never Vim's cwd.
+    Configuration alone runs nothing. Repository content is not executed until
+    you issue Start. No repository-specific command configuration is loaded.
+
+REQUIREMENTS AND LIMITS                             *simplepreview-limits*
+
+    Vim9 +job +channel, POSIX Python 3 with waitid/WNOWAIT, existing package.json
+    project, installed dependencies, foreground server. Linux tested; macOS
+    browser branch unverified; Windows unsupported. Browser opener is xdg-open
+    (Linux) or open (macOS). No automatic dependency installation.
+
+    This opens an external browser, not a rendered Vim split. HMR is supplied
+    by your dev server after saves, not unsaved edits. TSX needs a working app.
+    No standalone component harness, SSH port forwarding, remote server,
+    server authentication, or browser-render success detection. A loopback
+    server can still redirect a browser elsewhere; use trusted projects.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
