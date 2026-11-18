@@ -90,4 +90,32 @@ CURSOR CANVASES                                     *simplepreview-canvas*
       let g:simplepreview_canvas_runtime = '/path/to/canvas-runtime.esm.js'
       let g:simplepreview_canvas_typescript = '/path/to/typescript.js'
 
+MEDIA                                               *simplepreview-media*
+
+:SimplePreviewImage [literal path]                   *:SimplePreviewImage*
+:SimplePreviewVideo [literal path]                   *:SimplePreviewVideo*
+    Explicit external ffplay window, NOT inline terminal/Vim playback. Default
+    is the current saved local buffer. Spaces are literal; do not shell-quote
+    or expand %. For arbitrary paths use simplepreview_media#Preview(kind, path).
+    Images: png/jpg/jpeg/webp/bmp. Video: mp4/m4v/mov/mkv/webm/avi.
+    Requires ffplay, Python and POSIX plus a graphical display. No installation
+    or automatic playback. No package.json required; unsaved edits are ignored.
+
+:SimplePreviewMediaStatus                            *:SimplePreviewMediaStatus*
+    Independent media process state, path, kind, external backend, exit code,
+    and at most 512 escaped output characters. Running or exit 0 does not
+    prove display/decode success. ffplay may return 0 on invalid input.
+
+:SimplePreviewMediaStop                              *:SimplePreviewMediaStop*
+    Stop only the managed media process group. Vim exit also cleans it up.
+    Wait for stopping to finish before another preview. Web session unaffected.
+
+    Only readable regular local files, resolved symlinks and supported target
+    extensions; no URLs, special files, playlists or SVG. Absolute argv paths,
+    no shell or desktop file associations. Demuxer/protocol allowlists block
+    playlist/network inputs; MOV external references stay disabled by default.
+    This is not a decoder sandbox or resource limit. Use trusted files and
+    updated FFmpeg. Linux synthetic decoding tested using SDL dummy, not a
+    visible window/audio or four-terminal end-to-end test. macOS unverified.
+
 vim:tw=78:ts=8:noet:ft=help:norl:

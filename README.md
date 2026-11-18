@@ -2,6 +2,7 @@
 
 An independent Vim9 plugin for **existing local web projects** and **Cursor Canvases**.
 It starts a preview on request and opens it in your external browser.
+It also explicitly previews local images/videos in an external ffplay window.
 
 ## Requirements
 
@@ -176,3 +177,49 @@ group cleanup after stop/EOF/leader exit, output-flood backpressure, bounded/reu
 non-root entry paths (including a synthetic root-404/page-200 web server), and
 explicit restart retention/coalescing/cancellation with a group-owned lock.
 These are not a React/Vite end-to-end or macOS verification claim.
+
+## Images and videos (external window)
+
+```vim
+:SimplePreviewImage
+:SimplePreviewVideo /home/me/Videos/clip.mp4
+:SimplePreviewMediaStatus
+:SimplePreviewMediaStop
+```
+
+These explicit commands launch **ffplay in a separate graphical window**, not a
+Vim split or terminal-native image/video renderer. No media is launched on file
+open/save. Without a path they use the saved current buffer; otherwise the whole
+argument is a literal filename (spaces allowed, no quotes, shell expansion or
+`%` expansion). The typed API also accepts literal paths:
+`call simplepreview_media#Preview('image', '/home/me/photo with spaces.png')`.
+No project/package.json is needed. The file on disk is previewed, not unsaved edits.
+
+Install ffplay (usually the FFmpeg package) yourself. Nothing is installed by the
+plugin. Requires the existing POSIX/Python supervisor and a working graphical
+session; SSH/headless terminals do not automatically get a local player window.
+Images: PNG, JPEG, WebP, BMP. Videos: MP4/M4V/MOV, MKV/WebM, AVI. Codec availability
+depends on your FFmpeg build. SVG, GIF, playlists, URLs, directories and special
+files are intentionally unsupported. Symlinks resolve to an existing regular
+file; the target's extension is checked. Filenames are absolute argv values,
+never shell commands or desktop URL/file associations. The demuxer allowlist
+rejects disguised playlists; only the `file` protocol is enabled. ffplay's
+external MOV references remain disabled by default. These restrictions are **not
+a sandbox**: native media decoders still parse the selected file, may use CPU or
+memory, and have their own vulnerabilities. Preview trusted media and keep
+FFmpeg updated. No hard size/memory/CPU isolation or adversarial file-race
+protection is promised.
+
+One media session is managed independently of the web/Canvas session. Stop and
+Vim exit clean up its owned process group using the same supervisor; wait until
+it is no longer stopping before opening another. No unrelated players are
+closed. MediaStatus reports the path, backend, process state, exit code and a
+bounded escaped output fragment. `running` only means the process is alive;
+`exited`/exit code 0 does **not** prove successful display or decoding (ffplay can
+exit 0 after input errors). Inspect `last_output` and the player window.
+
+Anvil/Forge/Ember/Frost have differing static-image capabilities; this backend
+does not depend on their Kitty graphics support and does not claim inline video.
+Linux tests cover argv boundaries, managed cleanup, real synthetic PNG/AVI
+with SDL's dummy video driver, and a disguised playlist rejection. This is not
+four-terminal GUI, real monitor/audio, macOS, or SSH end-to-end validation.
