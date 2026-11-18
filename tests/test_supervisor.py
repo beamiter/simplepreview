@@ -113,6 +113,13 @@ server.serve_forever()
 
     @unittest.skipUnless(os.environ.get('VIM_TEST_BIN'), 'run via make check for Vim integration')
     def test_vim_exit_cleans_children(self):
+        self.vim_exit_case(False)
+
+    @unittest.skipUnless(os.environ.get('VIM_TEST_BIN'), 'run via make check for Vim integration')
+    def test_vim_exit_cancels_queued_restart(self):
+        self.vim_exit_case(True)
+
+    def vim_exit_case(self, restart):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'package.json').write_text('{}')
@@ -133,7 +140,8 @@ time.sleep(60)
                               + ', ' + json.dumps(temp) + ')\n'
                               'for i in range(100)\n'
                               '  if filereadable(' + json.dumps(str(pidfile)) + ') | break | endif\n'
-                              '  sleep 20m\nendfor\nqa!\n')
+                              '  sleep 20m\nendfor\n'
+                              + ('SimplePreviewRestart\n' if restart else '') + 'qa!\n')
             result = subprocess.run([os.environ['VIM_TEST_BIN'], '-Nu', 'NONE', '-n', '-i',
                                      'NONE', '-es', '-S', str(script)],
                                     capture_output=True, timeout=6)

@@ -88,6 +88,16 @@ root marker. Running a project command still executes that project's code and
 any package-manager lifecycle hooks: use only projects you trust. Passing
 `sh -c ...` explicitly opts into a shell; the plugin never adds one for you.
 
+Use `:SimplePreviewRestart` to explicitly repeat the last launched argv and
+project directory, including a custom `pnpm run dev:web`. It does not fall back
+to the current default command, current buffer or a changed root override. If a
+session is still running, the replacement waits until its supervisor finishes
+process-group cleanup. Repeated requests coalesce into one pending restart;
+`:SimplePreviewStop` or quitting Vim cancels it. Status exposes `restart_pending`.
+A missing original project marker cancels the restart instead of selecting an
+ancestor project. Restart errors remain in status/logs; they never auto-retry.
+Restart does not open a browser. With no previous command, use Start first.
+
 There is one managed session per Vim instance. Stop is asynchronous: wait for
 `state: exited` before starting another project. Repeated Stop is safe. Vim exit
 or a closed control pipe also cleans up the managed process group. Ordinary
@@ -139,5 +149,6 @@ or launch a real browser. Coverage includes hostile URLs, split/ANSI output,
 nearest project discovery, spaces/apostrophes and literal argv, no automatic
 start/open, repeated stop/restart, nonzero exit, relative executables, process
 group cleanup after stop/EOF/leader exit, output-flood backpressure, bounded/reusable diagnostic logs, and explicit
-non-root entry paths (including a synthetic root-404/page-200 web server).
+non-root entry paths (including a synthetic root-404/page-200 web server), and
+explicit restart retention/coalescing/cancellation with a group-owned lock.
 These are not a React/Vite end-to-end or macOS verification claim.

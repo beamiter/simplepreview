@@ -9,6 +9,7 @@ var pending = ''
 var last_line = ''
 var exit_code = -1
 var generation = 0
+var pending_restart: dict<any> = {}
 var log_lines: list<string> = []
 var log_buffer = -1
 const LogLimit = 200
@@ -61,7 +62,7 @@ enddef
 
 export def Status(): dict<any>
   return {state: phase, root: root, command: copy(command), url: url,
-          exit_code: exit_code, last_line: last_line}
+          exit_code: exit_code, last_line: last_line, restart_pending: !empty(pending_restart)}
 enddef
 
 def RefreshLogs()
@@ -141,7 +142,28 @@ def Exited(id: number, _job: job, code: number)
   if id == generation
     exit_code = code
     phase = 'exited'
+    if !empty(pending_restart)
+      var request = pending_restart
+      pending_restart = {}
+      try
+        LaunchRestart(request)
+      catch
+        # Retire old output/close callbacks too, so a late partial line cannot
+        # overwrite the failure diagnostic when no replacement was launched.
+        generation += 1
+        phase = 'failed'
+        ReadLine('SimplePreview restart failed: ' .. v:exception)
+        RefreshLogs()
+      endtry
+    endif
   endif
+enddef
+
+def LaunchRestart(request: dict<any>)
+  if ProjectRoot(request.root) != request.root
+    throw 'SimplePreview: original project root no longer has package.json'
+  endif
+  Start(request.command, request.root)
 enddef
 
 export def Start(args: list<string> = [], directory: string = '')
@@ -201,13 +223,36 @@ export def Start(args: list<string> = [], directory: string = '')
   endif
 enddef
 
-export def Stop()
+def StopJob()
   if phase != 'running' && phase != 'stopping'
     return
   endif
   phase = 'stopping'
-  if job_status(server) == 'run'
-    job_stop(server, 'term')
+  var target = server
+  if job_status(target) == 'run'
+    job_stop(target, 'term')
+  endif
+enddef
+
+export def Stop()
+  pending_restart = {}
+  StopJob()
+enddef
+
+export def Restart()
+  if empty(command) || empty(root)
+    throw 'SimplePreview: no previous command; use Start first'
+  endif
+  var request = {command: copy(command), root: root}
+  if ProjectRoot(root) != root
+    throw 'SimplePreview: original project root no longer has package.json'
+  endif
+  if phase == 'running' || phase == 'stopping'
+    # One explicit queued restart. Repeated requests coalesce; Stop cancels it.
+    pending_restart = request
+    StopJob()
+  else
+    LaunchRestart(request)
   endif
 enddef
 

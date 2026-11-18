@@ -31,9 +31,17 @@ COMMANDS                                           *simplepreview-commands*
     Start from this window can reuse the managed session's project directory.
     Flood backpressure may drop output; this is not a complete build log.
 
+:SimplePreviewRestart                               *:SimplePreviewRestart*
+    Explicitly repeat the last launched argv and original project directory.
+    Wait for full supervisor cleanup before replacing a running session.
+    Repeated requests coalesce. Stop or Vim exit cancels the pending restart;
+    Status includes restart_pending. Missing original package.json fails closed
+    instead of falling back to an ancestor. Errors appear in status/logs with no
+    automatic retries. Does not open the browser. Start is required once first.
+
 :SimplePreviewStop                                  *:SimplePreviewStop*
     Asynchronously stop owned foreground process group (TERM, then KILL).
-    Wait until state is exited before restarting. Safe to repeat. Vim exit
+    Cancels any pending Restart; wait for exited before a different Start. Safe to repeat. Vim exit
     also requests cleanup. Deliberately detached/daemonized children excluded.
 
 CONFIGURATION                                      *simplepreview-config*

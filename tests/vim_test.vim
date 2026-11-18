@@ -29,6 +29,7 @@ enddef
 
 try
   assert_equal('idle', simplepreview#Status().state)
+  Throws('SimplePreviewRestart', 'SimplePreview: no previous command')
   for token in ['http://localhost:5173/', 'https://127.0.0.1:443/', 'http://[::1]:8000/']
     assert_equal(token, simplepreview#LocalURL(token))
   endfor
@@ -187,6 +188,86 @@ try
   assert_equal(200, line('$'))
   close
 
+  # Restart retains an explicit dev:web-like argv and root; no project script.
+  simplepreview#Start(['python3', Repo .. '/tests/restart_fixture.py', 'dev:web'], Temp)
+  for _ in range(100)
+    if !empty(simplepreview#Status().url)
+      break
+    endif
+    sleep 20m
+  endfor
+  assert_equal('http://localhost:5173/', simplepreview#Status().url)
+  var original_command = simplepreview#Status().command
+  g:simplepreview_command = ['not-the-original-command']
+  g:simplepreview_root = Temp .. '/src/nested'
+  SimplePreviewRestart
+  SimplePreviewRestart
+  assert_true(simplepreview#Status().restart_pending)
+  for _ in range(150)
+    if len(readfile(Temp .. '/restart-runs.jsonl')) == 2 && !empty(simplepreview#Status().url)
+      break
+    endif
+    sleep 20m
+  endfor
+  assert_equal('running', simplepreview#Status().state)
+  assert_false(simplepreview#Status().restart_pending)
+  assert_equal(original_command, simplepreview#Status().command)
+  var runs = readfile(Temp .. '/restart-runs.jsonl')
+  assert_equal(2, len(runs))
+  for run in runs
+    var record = json_decode(run)
+    assert_equal(Temp, record.cwd)
+    assert_equal(['dev:web'], record.args)
+  endfor
+  # A missing marker must not silently retarget the restart to an ancestor.
+  rename(Temp .. '/package.json', Temp .. '/package.saved')
+  Throws('SimplePreviewRestart', 'SimplePreview: original project root')
+  assert_equal('running', simplepreview#Status().state)
+  rename(Temp .. '/package.saved', Temp .. '/package.json')
+  SimplePreviewRestart
+  SimplePreviewStop
+  WaitFor('exited')
+  assert_false(simplepreview#Status().restart_pending)
+  assert_equal(2, len(readfile(Temp .. '/restart-runs.jsonl')))
+  SimplePreviewRestart
+  for _ in range(100)
+    if len(readfile(Temp .. '/restart-runs.jsonl')) == 3
+      break
+    endif
+    sleep 20m
+  endfor
+  assert_equal(3, len(readfile(Temp .. '/restart-runs.jsonl')))
+  SimplePreviewRestart
+  # The marker can vanish after queueing too; failure must not spawn or loop.
+  rename(Temp .. '/package.json', Temp .. '/package.saved')
+  WaitFor('failed')
+  sleep 150m  # Late output/close callbacks must not replace the failure.
+  assert_false(simplepreview#Status().restart_pending)
+  assert_equal(3, len(readfile(Temp .. '/restart-runs.jsonl')))
+  assert_match('original project root', simplepreview#Status().last_line)
+  rename(Temp .. '/package.saved', Temp .. '/package.json')
+  SimplePreviewStop
+  # A queued restart also fails closed if its original executable disappears.
+  var executable_copy = Temp .. '/tools/restart-server'
+  writefile(['#!/usr/bin/env python3'] + readfile(Repo .. '/tests/restart_fixture.py'), executable_copy)
+  setfperm(executable_copy, 'rwx------')
+  simplepreview#Start([executable_copy, 'custom:web'], Temp)
+  for _ in range(100)
+    if !empty(simplepreview#Status().url)
+      break
+    endif
+    sleep 20m
+  endfor
+  assert_equal(4, len(readfile(Temp .. '/restart-runs.jsonl')))
+  SimplePreviewRestart
+  delete(executable_copy)
+  WaitFor('failed')
+  sleep 150m  # Late output/close callbacks must not replace the failure.
+  assert_false(simplepreview#Status().restart_pending)
+  assert_equal(4, len(readfile(Temp .. '/restart-runs.jsonl')))
+  assert_match('executable not found', simplepreview#Status().last_line)
+  SimplePreviewStop
+  unlet g:simplepreview_command g:simplepreview_root
 catch
   assert_report(v:exception .. ' at ' .. v:throwpoint)
 finally

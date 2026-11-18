@@ -7,6 +7,7 @@ command! -nargs=* SimplePreviewStart simplepreview#Start([<f-args>])
 command! SimplePreviewLogs simplepreview#Logs()
 command! -nargs=? SimplePreviewOpen simplepreview#Open(<q-args>)
 command! SimplePreviewStatus echo simplepreview#Status()
+command! SimplePreviewRestart simplepreview#Restart()
 command! SimplePreviewStop simplepreview#Stop()
 augroup SimplePreview
   autocmd!
