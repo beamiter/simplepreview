@@ -4,6 +4,7 @@ if exists('g:loaded_simplepreview')
 endif
 g:loaded_simplepreview = true
 command! -nargs=* SimplePreviewStart simplepreview#Start([<f-args>])
+command! SimplePreviewLogs simplepreview#Logs()
 command! SimplePreviewOpen simplepreview#Open()
 command! SimplePreviewStatus echo simplepreview#Status()
 command! SimplePreviewStop simplepreview#Stop()

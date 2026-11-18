@@ -9,6 +9,10 @@ var pending = ''
 var last_line = ''
 var exit_code = -1
 var generation = 0
+var log_lines: list<string> = []
+var log_buffer = -1
+const LogLimit = 200
+const LogLineChars = 512
 
 # Exact loopback origins only: no credentials, path, DNS suffix or query.
 export def LocalURL(token: string): string
@@ -45,10 +49,43 @@ export def Status(): dict<any>
           exit_code: exit_code, last_line: last_line}
 enddef
 
+def RefreshLogs()
+  if log_buffer < 0 || !bufexists(log_buffer)
+    return
+  endif
+  setbufvar(log_buffer, '&modifiable', 1)
+  setbufline(log_buffer, 1, empty(log_lines) ? ['No output yet.'] : log_lines)
+  var count = empty(log_lines) ? 1 : len(log_lines)
+  deletebufline(log_buffer, count + 1, '$')
+  setbufvar(log_buffer, '&modified', 0)
+  setbufvar(log_buffer, '&modifiable', 0)
+enddef
+
+export def Logs()
+  var windows = log_buffer < 0 ? [] : win_findbuf(log_buffer)
+  if !empty(windows)
+    win_gotoid(windows[0])
+    return
+  endif
+  botright new
+  resize 12
+  log_buffer = bufnr()
+  setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted nowrap nomodeline
+  setlocal readonly undolevels=-1
+  b:simplepreview_logs = true
+  file [SimplePreview Logs]
+  RefreshLogs()
+enddef
+
 def ReadLine(line: string)
-  var clean = substitute(line, '\e\[[0-?]*[ -/]*[@-~]', '', 'g')
+  var clean = substitute(line, '\e\].\{-}\%(\%x07\|\e\\\)', '', 'g')
+  clean = substitute(clean, '\e\[[0-?]*[ -/]*[@-~]', '', 'g')
   clean = substitute(clean, '[[:cntrl:]]', '', 'g')
-  last_line = strpart(clean, 0, 512)
+  last_line = strcharpart(clean, 0, 512)
+  add(log_lines, strcharpart(clean, 0, LogLineChars))
+  if len(log_lines) > LogLimit
+    remove(log_lines, 0, len(log_lines) - LogLimit - 1)
+  endif
   if empty(url)
     for token in split(clean)
       var candidate = LocalURL(token)
@@ -70,13 +107,18 @@ def Output(id: number, _channel: channel, data: string)
   for line in lines
     ReadLine(line)
   endfor
-  pending = strpart(pending, max([0, strlen(pending) - 8192]))
+  # Trim on character boundaries, including when a raw callback splits UTF-8.
+  pending = strcharpart(pending, max([0, strchars(pending) - 2048]))
+  if !empty(lines)
+    RefreshLogs()
+  endif
 enddef
 
 def Closed(id: number, _channel: channel)
   if id == generation && !empty(pending)
     ReadLine(pending)
     pending = ''
+    RefreshLogs()
   endif
 enddef
 
@@ -97,6 +139,9 @@ export def Start(args: list<string> = [], directory: string = '')
   var location = directory
   if empty(location)
     location = get(g:, 'simplepreview_root', '')
+  endif
+  if empty(location) && bufnr() == log_buffer && !empty(root)
+    location = root
   endif
   if empty(location)
     if &buftype != '' || bufname() =~# '^\a\+://'
@@ -126,6 +171,8 @@ export def Start(args: list<string> = [], directory: string = '')
   url = ''
   pending = ''
   last_line = ''
+  log_lines = []
+  RefreshLogs()
   exit_code = -1
   phase = 'running'
   server = job_start(['python3', Supervisor] + argv, {

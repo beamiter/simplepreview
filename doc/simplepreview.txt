@@ -18,6 +18,14 @@ COMMANDS                                           *simplepreview-commands*
     Show state, project root, argv, URL, exit code and latest output line.
     Output is bounded and can be lossy under backpressure; not a full log.
 
+:SimplePreviewLogs                                  *:SimplePreviewLogs*
+    Open/reuse a read-only scratch window with the latest 200 completed output
+    lines, capped at 512 Unicode characters each. Terminal CSI/OSC escapes are
+    removed. No project file is written. The tail survives window closure and
+    is cleared by the next Start. Undo history is disabled. Closing the log window does not stop service.
+    Start from this window can reuse the managed session's project directory.
+    Flood backpressure may drop output; this is not a complete build log.
+
 :SimplePreviewStop                                  *:SimplePreviewStop*
     Asynchronously stop owned foreground process group (TERM, then KILL).
     Wait until state is exited before restarting. Safe to repeat. Vim exit

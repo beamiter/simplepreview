@@ -30,6 +30,7 @@ Open a local file in an existing project, then:
 ```vim
 :SimplePreviewStart
 :SimplePreviewStatus
+:SimplePreviewLogs
 :SimplePreviewOpen
 :SimplePreviewStop
 ```
@@ -40,6 +41,12 @@ never changes Vim's working directory. Status shows the state, project root,
 argv, first accepted local URL, exit code, and latest output line. If the server
 reports a different available port, the actual printed port is used. A port
 conflict without a URL remains visible in status; no unrelated process is killed.
+Use `:SimplePreviewLogs` to inspect earlier build errors in a read-only scratch
+window. It retains the latest 200 completed output lines, capped at 512 Unicode
+characters per line, strips terminal styling/hyperlink escapes, and never writes
+logs to a project file. Reopening the command reuses the existing log window;
+closing it does not stop the server. Undo history is disabled for this window. Starting a new session clears the log tail.
+From this log window, Start can reuse the previous session's project directory.
 
 To explicitly use a different command:
 
@@ -79,7 +86,7 @@ outside this ownership boundary and must not be used as a dev command.
   shell/browser flags are rejected. Only the first accepted URL is retained.
 - The plugin uses argv lists, not shell concatenation, for both server and
   browser. Paths with spaces and apostrophes are supported.
-- Retained output is bounded. Under heavy backpressure the supervisor may drop
+- Retained output is bounded (status plus the diagnostic tail). Under heavy backpressure the supervisor may drop
   log chunks rather than block cleanup. Status is not a complete log viewer.
 - A loopback address is not proof of trustworthy content. The plugin does not
   authenticate the server or control redirects performed by a browser.
@@ -112,5 +119,5 @@ Linux browser opener. They do not install packages, run a real project's scripts
 or launch a real browser. Coverage includes hostile URLs, split/ANSI output,
 nearest project discovery, spaces/apostrophes and literal argv, no automatic
 start/open, repeated stop/restart, nonzero exit, relative executables, process
-group cleanup after stop/EOF/leader exit, and output-flood backpressure.
+group cleanup after stop/EOF/leader exit, output-flood backpressure, and bounded/reusable diagnostic logs.
 These are not a React/Vite end-to-end or macOS verification claim.

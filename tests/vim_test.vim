@@ -1,4 +1,5 @@
 vim9script
+delete('/tmp/simplepreview-vim-errors')
 const Repo = fnamemodify(expand('<sfile>:p'), ':h:h')
 execute 'set rtp^=' .. fnameescape(Repo)
 runtime plugin/simplepreview.vim
@@ -99,6 +100,53 @@ try
   WaitFor('exited')
   assert_equal('relative-ok', simplepreview#Status().last_line)
   assert_equal(0, simplepreview#Status().exit_code)
+  # A readable diagnostic tail retains earlier build errors, not only last_line.
+  simplepreview#Start(['python3', '-c', 'print("ERROR: missing module"); print("build failed"); exit(2)'], Temp)
+  WaitFor('exited')
+  SimplePreviewLogs
+  var logbuf = bufnr()
+  assert_equal(['ERROR: missing module', 'build failed'], getline(1, '$'))
+  assert_equal('nofile', &buftype)
+  assert_false(&modifiable)
+  assert_false(&modeline)
+  assert_false(&swapfile)
+  assert_true(&readonly)
+  assert_false(&modified)
+  assert_equal(-1, &undolevels)
+  assert_equal([], undotree().entries)
+  var windows = winnr('$')
+  SimplePreviewLogs
+  assert_equal(logbuf, bufnr())
+  assert_equal(windows, winnr('$'))
+  # Restart from the diagnostic window uses the owned session's project root.
+  unlet g:simplepreview_root
+  simplepreview#Start(['python3', '-c', 'print("fresh"); exit(0)'])
+  assert_equal(['No output yet.'], getbufline(logbuf, 1, '$'))
+  WaitFor('exited')
+  assert_equal(['fresh'], getbufline(logbuf, 1, '$'))
+  assert_equal([], undotree().entries)
+  assert_equal(Temp, simplepreview#Status().root)
+  simplepreview#Start(['python3', '-c', 'import sys; print("\x1b]8;;https://evil.example\x07label\x1b]8;;\x07"); print(chr(27)+"]0;hidden title"+chr(27)+chr(92)+"visible"); print("\x1b[31mred\x1b[0m"); print("中" * 600)'], Temp)
+  WaitFor('exited')
+  assert_equal('label', getbufline(logbuf, 1)[0])
+  assert_equal('visible', getbufline(logbuf, 2)[0])
+  assert_equal('red', getbufline(logbuf, 3)[0])
+  assert_equal(repeat('中', 512), getbufline(logbuf, 4)[0])
+  # Force multiple raw callbacks and a UTF-8 split across the old byte cap.
+  simplepreview#Start(['python3', '-c', 'import sys,time; data=("中"*4000).encode(); sys.stdout.buffer.write(data[:9001]); sys.stdout.buffer.flush(); time.sleep(.1); sys.stdout.buffer.write(data[9001:]+b"\n"); sys.stdout.buffer.flush()'], Temp)
+  WaitFor('exited')
+  assert_equal(repeat('中', 512), getbufline(logbuf, 1)[0])
+  simplepreview#Start(['python3', '-c', '[print("line-%d" % n) for n in range(250)]'], Temp)
+  WaitFor('exited')
+  assert_equal(200, len(getbufline(logbuf, 1, '$')))
+  assert_equal('line-50', getbufline(logbuf, 1)[0])
+  assert_equal('line-249', getbufline(logbuf, '$')[0])
+  close
+  assert_false(bufexists(logbuf))
+  SimplePreviewLogs
+  assert_equal(200, line('$'))
+  close
+
 catch
   assert_report(v:exception .. ' at ' .. v:throwpoint)
 finally
